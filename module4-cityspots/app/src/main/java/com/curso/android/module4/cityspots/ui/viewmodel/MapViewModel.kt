@@ -96,8 +96,13 @@ class MapViewModel(
      * Estado del resultado de captura
      * true = captura exitosa, false = error, null = sin resultado pendiente
      */
-    private val _captureResult = MutableStateFlow<Boolean?>(null)
-    val captureResult: StateFlow<Boolean?> = _captureResult.asStateFlow()
+//    private val _captureResult = MutableStateFlow<Boolean?>(null)
+//    val captureResult: StateFlow<Boolean?> = _captureResult.asStateFlow()
+
+    //expone un createSpotResult tipado en vez de un boolean
+    //para manejar errores especificos
+    private val _createSpotResult = MutableStateFlow<CreateSpotResult?>(null)
+    val createSpotResult: StateFlow<CreateSpotResult?> = _createSpotResult.asStateFlow()
 
     // =========================================================================
     // ACCIONES
@@ -159,36 +164,49 @@ class MapViewModel(
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-
-                when (val result = repository.createSpot(imageCapture)) {
-                    is CreateSpotResult.Success -> {
-                        _captureResult.value = true
-                    }
-
-                    is CreateSpotResult.NoLocation -> {
-                        _errorMessage.value = "No se pudo obtener la ubicación. Verifica que el GPS esté activado."
-                        _captureResult.value = false
-                    }
-
-                    is CreateSpotResult.InvalidCoordinates -> {
-                        _errorMessage.value = result.message
-                        _captureResult.value = false
-                    }
+                //ejecuta el proceso de la captura en el repositorio
+                    val result = repository.createSpot(imageCapture)
+                //el repo ya devuelve Succes/Nolocation/InvalidCoordinates/PhotoCaptureFailed
+                    _createSpotResult.value = result
+                } catch (e: Exception) {
+                    //por si algo totalmente inesperado falla
+                    _errorMessage.value = "Error al capturar: ${e.message}"
+                    _createSpotResult.value = null
+                } finally {
+                    _isLoading.value = false
                 }
-            } catch (e: Exception) {
-                _errorMessage.value = "Error al capturar: ${e.message}"
-                _captureResult.value = false
-            } finally {
-                _isLoading.value = false
             }
+
+//                when (val result = repository.createSpot(imageCapture)) {
+//                    is CreateSpotResult.Success -> {
+//                        _captureResult.value = true
+//                    }
+//
+//                    is CreateSpotResult.NoLocation -> {
+//                        _errorMessage.value = "No se pudo obtener la ubicación. Verifica que el GPS esté activado."
+//                        _captureResult.value = false
+//                    }
+//
+//                    is CreateSpotResult.InvalidCoordinates -> {
+//                        _errorMessage.value = result.message
+//                        _captureResult.value = false
+//                    }
+//                }
+//            } catch (e: Exception) {
+//                _errorMessage.value = "Error al capturar: ${e.message}"
+//                _captureResult.value = false
+//            } finally {
+//                _isLoading.value = false
+//            }
         }
-    }
+
 
     /**
      * Limpia el resultado de captura después de procesarlo
      */
     fun clearCaptureResult() {
-        _captureResult.value = null
+//        _captureResult.value = null
+        _createSpotResult.value = null
     }
 
     /**
@@ -197,6 +215,6 @@ class MapViewModel(
     fun clearError() {
         _errorMessage.value = null
     }
-
-
 }
+
+

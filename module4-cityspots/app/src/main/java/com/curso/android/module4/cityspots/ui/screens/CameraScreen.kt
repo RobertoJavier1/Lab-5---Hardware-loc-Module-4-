@@ -50,6 +50,178 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 /**
+ * Composable para la vista previa de la cámara
+ *
+ * CONCEPTO: AndroidView para Interoperabilidad
+ *
+ * CameraX usa PreviewView, una View tradicional de Android.
+ * AndroidView nos permite integrarla en Compose:
+ *
+ * - factory: Se llama una vez para crear la View
+ * - update: Se llama en cada recomposición (puede ser frecuente)
+ *
+ * IMPORTANTE: La configuración de la cámara debe hacerse en factory
+ * o en un LaunchedEffect, no en update (se llamaría muchas veces).
+ *
+ * @param imageCapture Use case de ImageCapture para vincular
+ * @param lifecycleOwner Owner del lifecycle para CameraX
+ * @param modifier Modificador de Compose
+ */
+@Composable
+private fun CameraPreview(
+    imageCapture: ImageCapture,
+    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+
+    // Estado para el PreviewView (necesario para configurar en LaunchedEffect)
+    var previewView by remember { mutableStateOf<PreviewView?>(null) }
+
+    /**
+     * CONCEPTO: DisposableEffect para limpieza
+     *
+     * DisposableEffect ejecuta código cuando el composable entra/sale.
+     * onDispose se llama cuando el composable se desmonta.
+     * Aquí liberamos los recursos de la cámara.
+     */
+    DisposableEffect(lifecycleOwner) {
+        onDispose {
+            // Limpiar recursos de CameraX
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                cameraProvider.unbindAll()
+            }, ContextCompat.getMainExecutor(context))
+        }
+    }
+
+    // Configurar la cámara cuando tenemos el PreviewView
+    LaunchedEffect(previewView) {
+        previewView?.let { preview ->
+            setupCamera(
+                context = context,
+                lifecycleOwner = lifecycleOwner,
+                previewView = preview,
+                imageCapture = imageCapture
+            )
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            PreviewView(ctx).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                // Tipo de implementación de la superficie
+                // PERFORMANCE: Mejor rendimiento, usa SurfaceView
+                // COMPATIBLE: Más compatible, usa TextureView
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            }.also {
+                previewView = it
+            }
+        },
+        modifier = modifier
+    )
+}
+
+/**
+ * Configura CameraX con Preview e ImageCapture use cases
+ *
+ * CONCEPTO: ProcessCameraProvider
+ *
+ * Es el singleton que maneja el acceso a la cámara:
+ * 1. getInstance() retorna un Future del provider
+ * 2. bindToLifecycle() vincula use cases al lifecycle
+ * 3. unbindAll() libera todos los use cases
+ *
+ * FLUJO:
+ * ProcessCameraProvider.getInstance()
+ *     .addListener({
+ *         provider.unbindAll()  // Liberar uso anterior
+ *         provider.bindToLifecycle(
+ *             lifecycleOwner,
+ *             cameraSelector,
+ *             preview,         // Use case: vista previa
+ *             imageCapture     // Use case: captura
+ *         )
+ *     }, executor)
+ */
+private suspend fun setupCamera(
+    context: android.content.Context,
+    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+    previewView: PreviewView,
+    imageCapture: ImageCapture
+) {
+    // Obtener el CameraProvider de forma suspendible
+    val cameraProvider = suspendCoroutine<ProcessCameraProvider> { continuation ->
+        ProcessCameraProvider.getInstance(context).addListener({
+            continuation.resume(ProcessCameraProvider.getInstance(context).get())
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    // Configurar el Preview use case
+    val preview = Preview.Builder().build().also {
+        // Conectar la superficie del PreviewView con el Preview use case
+        it.surfaceProvider = previewView.surfaceProvider
+    }
+
+    // Seleccionar cámara trasera
+    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+    try {
+        // Desvincular cualquier use case anterior
+        cameraProvider.unbindAll()
+
+        // Vincular use cases al lifecycle
+        // CameraX maneja automáticamente start/stop según el lifecycle
+        cameraProvider.bindToLifecycle(
+            lifecycleOwner,
+            cameraSelector,
+            preview,
+            imageCapture
+        )
+    } catch (e: Exception) {
+        // Error al vincular la cámara (ej: cámara en uso por otra app)
+        e.printStackTrace()
+    }
+}
+
+/**
+ * Botón circular para capturar foto
+ *
+ * Diseño inspirado en apps de cámara estándar:
+ * - Círculo blanco grande
+ * - Icono de cámara en el centro
+ * - Se deshabilita durante la captura
+ */
+@Composable
+private fun CaptureButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(80.dp)
+            .background(
+                color = if (enabled) Color.White else Color.Gray,
+                shape = CircleShape
+            )
+    ) {
+        Icon(
+            imageVector = Icons.Default.Camera,
+            contentDescription = "Capturar foto",
+            tint = if (enabled) Color.Black else Color.DarkGray,
+            modifier = Modifier.size(40.dp)
+        )
+    }
+}
+
+/**
  * =============================================================================
  * CameraScreen - Pantalla de captura de fotos con CameraX
  * =============================================================================
@@ -233,177 +405,5 @@ fun CameraScreen(
                 }
             }
         }
-    }
-}
-
-/**
- * Composable para la vista previa de la cámara
- *
- * CONCEPTO: AndroidView para Interoperabilidad
- *
- * CameraX usa PreviewView, una View tradicional de Android.
- * AndroidView nos permite integrarla en Compose:
- *
- * - factory: Se llama una vez para crear la View
- * - update: Se llama en cada recomposición (puede ser frecuente)
- *
- * IMPORTANTE: La configuración de la cámara debe hacerse en factory
- * o en un LaunchedEffect, no en update (se llamaría muchas veces).
- *
- * @param imageCapture Use case de ImageCapture para vincular
- * @param lifecycleOwner Owner del lifecycle para CameraX
- * @param modifier Modificador de Compose
- */
-@Composable
-private fun CameraPreview(
-    imageCapture: ImageCapture,
-    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-
-    // Estado para el PreviewView (necesario para configurar en LaunchedEffect)
-    var previewView by remember { mutableStateOf<PreviewView?>(null) }
-
-    /**
-     * CONCEPTO: DisposableEffect para limpieza
-     *
-     * DisposableEffect ejecuta código cuando el composable entra/sale.
-     * onDispose se llama cuando el composable se desmonta.
-     * Aquí liberamos los recursos de la cámara.
-     */
-    DisposableEffect(lifecycleOwner) {
-        onDispose {
-            // Limpiar recursos de CameraX
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
-                cameraProvider.unbindAll()
-            }, ContextCompat.getMainExecutor(context))
-        }
-    }
-
-    // Configurar la cámara cuando tenemos el PreviewView
-    LaunchedEffect(previewView) {
-        previewView?.let { preview ->
-            setupCamera(
-                context = context,
-                lifecycleOwner = lifecycleOwner,
-                previewView = preview,
-                imageCapture = imageCapture
-            )
-        }
-    }
-
-    AndroidView(
-        factory = { ctx ->
-            PreviewView(ctx).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                // Tipo de implementación de la superficie
-                // PERFORMANCE: Mejor rendimiento, usa SurfaceView
-                // COMPATIBLE: Más compatible, usa TextureView
-                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-            }.also {
-                previewView = it
-            }
-        },
-        modifier = modifier
-    )
-}
-
-/**
- * Configura CameraX con Preview e ImageCapture use cases
- *
- * CONCEPTO: ProcessCameraProvider
- *
- * Es el singleton que maneja el acceso a la cámara:
- * 1. getInstance() retorna un Future del provider
- * 2. bindToLifecycle() vincula use cases al lifecycle
- * 3. unbindAll() libera todos los use cases
- *
- * FLUJO:
- * ProcessCameraProvider.getInstance()
- *     .addListener({
- *         provider.unbindAll()  // Liberar uso anterior
- *         provider.bindToLifecycle(
- *             lifecycleOwner,
- *             cameraSelector,
- *             preview,         // Use case: vista previa
- *             imageCapture     // Use case: captura
- *         )
- *     }, executor)
- */
-private suspend fun setupCamera(
-    context: android.content.Context,
-    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
-    previewView: PreviewView,
-    imageCapture: ImageCapture
-) {
-    // Obtener el CameraProvider de forma suspendible
-    val cameraProvider = suspendCoroutine<ProcessCameraProvider> { continuation ->
-        ProcessCameraProvider.getInstance(context).addListener({
-            continuation.resume(ProcessCameraProvider.getInstance(context).get())
-        }, ContextCompat.getMainExecutor(context))
-    }
-
-    // Configurar el Preview use case
-    val preview = Preview.Builder().build().also {
-        // Conectar la superficie del PreviewView con el Preview use case
-        it.surfaceProvider = previewView.surfaceProvider
-    }
-
-    // Seleccionar cámara trasera
-    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-    try {
-        // Desvincular cualquier use case anterior
-        cameraProvider.unbindAll()
-
-        // Vincular use cases al lifecycle
-        // CameraX maneja automáticamente start/stop según el lifecycle
-        cameraProvider.bindToLifecycle(
-            lifecycleOwner,
-            cameraSelector,
-            preview,
-            imageCapture
-        )
-    } catch (e: Exception) {
-        // Error al vincular la cámara (ej: cámara en uso por otra app)
-        e.printStackTrace()
-    }
-}
-
-/**
- * Botón circular para capturar foto
- *
- * Diseño inspirado en apps de cámara estándar:
- * - Círculo blanco grande
- * - Icono de cámara en el centro
- * - Se deshabilita durante la captura
- */
-@Composable
-private fun CaptureButton(
-    onClick: () -> Unit,
-    enabled: Boolean = true
-) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier
-            .size(80.dp)
-            .background(
-                color = if (enabled) Color.White else Color.Gray,
-                shape = CircleShape
-            )
-    ) {
-        Icon(
-            imageVector = Icons.Default.Camera,
-            contentDescription = "Capturar foto",
-            tint = if (enabled) Color.Black else Color.DarkGray,
-            modifier = Modifier.size(40.dp)
-        )
     }
 }
