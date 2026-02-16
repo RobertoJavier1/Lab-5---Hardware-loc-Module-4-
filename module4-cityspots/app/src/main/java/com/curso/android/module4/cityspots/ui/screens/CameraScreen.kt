@@ -48,6 +48,9 @@ import com.curso.android.module4.cityspots.ui.viewmodel.MapViewModel
 import org.koin.androidx.compose.koinViewModel
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import com.curso.android.module4.cityspots.repository.CreateSpotResult
+import com.curso.android.module4.cityspots.utils.CameraUtils
+
 
 /**
  * Composable para la vista previa de la cámara
@@ -276,7 +279,8 @@ fun CameraScreen(
     // Estados del ViewModel
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    val captureResult by viewModel.captureResult.collectAsState()
+//    val captureResult by viewModel.captureResult.collectAsState()
+    val createSpotResult by viewModel.createSpotResult.collectAsState()
 
     // Estado para el Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
@@ -307,19 +311,60 @@ fun CameraScreen(
     // =========================================================================
 
     // Manejar resultado de captura
-    LaunchedEffect(captureResult) {
-        when (captureResult) {
-            true -> {
-                viewModel.clearCaptureResult()
-                onNavigateBack() // Volver al mapa después de captura exitosa
+//    LaunchedEffect(captureResult) {
+//        when (captureResult) {
+//            true -> {
+//                viewModel.clearCaptureResult()
+//                onNavigateBack() // Volver al mapa después de captura exitosa
+//            }
+//            false -> {
+//                snackbarHostState.showSnackbar("Error al capturar la foto")
+//                viewModel.clearCaptureResult()
+//            }
+//            null -> { /* Sin resultado pendiente */ }
+//        }
+//    }
+
+    //nueva forma de manejar el resultado de la captura
+    LaunchedEffect(createSpotResult) {
+        //si lo de la izquierda es null entonces se ejecuta lo de la derecha
+        val result = createSpotResult ?: return@LaunchedEffect
+
+        when (result) {
+            is CreateSpotResult.Success -> {
+                onNavigateBack()
             }
-            false -> {
-                snackbarHostState.showSnackbar("Error al capturar la foto")
-                viewModel.clearCaptureResult()
+
+            is CreateSpotResult.NoLocation -> {
+                snackbarHostState.showSnackbar(
+                    "No se pudo obtener la ubicación. Verifica que el GPS esté activado."
+                )
             }
-            null -> { /* Sin resultado pendiente */ }
+
+            is CreateSpotResult.InvalidCoordinates -> {
+                snackbarHostState.showSnackbar(result.message)
+            }
+
+            is CreateSpotResult.PhotoCaptureFailed -> {
+                val message = when (result.error) {
+                    is CameraUtils.CaptureError.CameraClosedUnexpectedly ->
+                        "La cámara se cerró inesperadamente. Intente de nuevo."
+                    is CameraUtils.CaptureError.CaptureFailed ->
+                        "Falló la captura por un problema del hardware."
+                    is CameraUtils.CaptureError.FileIoError ->
+                        "No se pudo guardar la foto. Verifique almacenamiento."
+                    is CameraUtils.CaptureError.Unknown ->
+                        "Ocurrió un error inesperado al capturar la foto."
+                    else ->
+                        "Ocurrió un error inesperado al capturar la foto."
+                }
+                snackbarHostState.showSnackbar(message)
+            }
         }
+
+        viewModel.clearSpotResult()
     }
+
 
     // Mostrar errores
     LaunchedEffect(errorMessage) {

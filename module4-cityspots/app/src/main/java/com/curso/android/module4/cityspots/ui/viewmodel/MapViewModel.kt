@@ -204,7 +204,7 @@ class MapViewModel(
     /**
      * Limpia el resultado de captura después de procesarlo
      */
-    fun clearCaptureResult() {
+    fun clearSpotResult() {
 //        _captureResult.value = null
         _createSpotResult.value = null
     }
