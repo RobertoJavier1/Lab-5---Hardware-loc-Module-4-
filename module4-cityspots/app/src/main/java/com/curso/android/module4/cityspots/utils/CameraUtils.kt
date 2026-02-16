@@ -83,7 +83,7 @@ class CameraUtils(private val context: Context) {
      * @return URI del archivo guardado
      * @throws ImageCaptureException si falla la captura
      */
-    suspend fun capturePhoto(imageCapture: ImageCapture): Uri {
+    suspend fun capturePhoto(imageCapture: ImageCapture): CapturePhotoResult {
         return suspendCancellableCoroutine { continuation ->
             // Crear archivo de destino
             val photoFile = createImageFile()
@@ -101,14 +101,15 @@ class CameraUtils(private val context: Context) {
                     override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                         // Éxito: retornar URI del archivo
                         val savedUri = Uri.fromFile(photoFile)
-                        continuation.resume(savedUri)
+                        continuation.resume(CapturePhotoResult.Success(savedUri))
                     }
 
                     override fun onError(exception: ImageCaptureException) {
                         // Error: propagar excepción
                         // Limpiar archivo si se creó pero falló la escritura
                         photoFile.delete()
-                        continuation.resumeWithException(exception)
+                        //se utiliza mapCaptureError para mapear la excepcion, para devolver un error tipado en vez de lanzar la excepcion
+                        continuation.resume(CapturePhotoResult.Error(mapCaptureError(exception)))
                     }
                 }
             )
@@ -172,11 +173,29 @@ class CameraUtils(private val context: Context) {
     }
 
     sealed class CaptureError{
-        data object CameroClosedUnexpectedly: CaptureError()
-        data object CaptureFailedHardware : CaptureError()
+        data object CameraClosedUnexpectedly: CaptureError()
+        data object CaptureFailed : CaptureError()
         data object FileIoError: CaptureError()
         //por si algo mas falla
-        data class Unkown(val message: String? = null): CaptureError()
+        data class Unknown(val message: String? = null): CaptureError()
     }
+
+    //mapeo de errores
+    private fun mapCaptureError(e: ImageCaptureException):CaptureError{
+        return when (e.imageCaptureError){
+            ImageCapture.ERROR_CAMERA_CLOSED -> CaptureError.CameraClosedUnexpectedly
+            ImageCapture.ERROR_CAPTURE_FAILED -> CaptureError.CaptureFailed
+            ImageCapture.ERROR_FILE_IO -> CaptureError.FileIoError
+            else -> CaptureError.Unknown(e.message)
+        }
+    }
+
+    //posibles resultados de capturePhoto()
+    //en lugar de lanzar excepciones
+    sealed class CapturePhotoResult {
+        data class Success(val uri: Uri) : CapturePhotoResult()
+        data class Error(val error: CaptureError) : CapturePhotoResult()
+    }
+
 }
 
