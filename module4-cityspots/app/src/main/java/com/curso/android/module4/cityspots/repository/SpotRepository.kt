@@ -2,6 +2,7 @@ package com.curso.android.module4.cityspots.repository
 
 import android.location.Location
 import android.net.Uri
+import androidx.camera.core.Camera
 import androidx.camera.core.ImageCapture
 import com.curso.android.module4.cityspots.data.dao.SpotDao
 import com.curso.android.module4.cityspots.data.entity.SpotEntity
@@ -115,7 +116,9 @@ class SpotRepository(
      * @param imageCapture Use case de ImageCapture configurado en la UI
      * @return URI del archivo de imagen guardado
      */
-    suspend fun capturePhoto(imageCapture: ImageCapture): Uri {
+
+    //ahora capturePhoto devuelve un CapturePhotoResult
+    suspend fun capturePhoto(imageCapture: ImageCapture): CameraUtils.CapturePhotoResult {
         return cameraUtils.capturePhoto(imageCapture)
     }
 
@@ -172,7 +175,16 @@ class SpotRepository(
      */
     suspend fun createSpot(imageCapture: ImageCapture): CreateSpotResult {
         // 1. Capturar la foto
-        val photoUri = capturePhoto(imageCapture)
+        val photoResult = capturePhoto(imageCapture)
+
+        //manejar el resultado de la captura de la foto
+        //si falla, retornar el error y se detiene la operacion
+        val photoUri = when (photoResult){
+            is CameraUtils.CapturePhotoResult.Success -> photoResult.uri
+            is CameraUtils.CapturePhotoResult.Error ->{
+                return CreateSpotResult.PhotoCaptureFailed(photoResult.error)
+            }
+        }
 
         // 2. Obtener ubicación actual
         val location = getCurrentLocation()
@@ -228,4 +240,7 @@ sealed class CreateSpotResult {
     data class Success(val spot: SpotEntity) : CreateSpotResult()
     data object NoLocation : CreateSpotResult()
     data class InvalidCoordinates(val message: String) : CreateSpotResult()
+
+    //para manejar el error cuando falle la captura
+    data class PhotoCaptureFailed(val error: CameraUtils.CaptureError) : CreateSpotResult()
 }
