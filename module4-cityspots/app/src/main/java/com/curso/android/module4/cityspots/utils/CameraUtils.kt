@@ -170,4 +170,13 @@ class CameraUtils(private val context: Context) {
             false
         }
     }
+
+    sealed class CaptureError{
+        data object CameroClosedUnexpectedly: CaptureError()
+        data object CaptureFailedHardware : CaptureError()
+        data object FileIoError: CaptureError()
+        //por si algo mas falla
+        data class Unkown(val message: String? = null): CaptureError()
+    }
 }
+
