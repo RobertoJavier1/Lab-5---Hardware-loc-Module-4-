@@ -16,7 +16,7 @@ La UI ahora muestra mensajes específicos dependiendo del tipo de error, evitand
 
 ## Video explicación
 
-Link:  
+Link: https://youtu.be/4SOE_F1S0_k
 
 
 ---
@@ -45,7 +45,7 @@ La eliminación se activa mediante un long-press sobre la ventana de informacion
 
 ## Video explicación
 
-Link:  
+Link: https://youtu.be/sZSrC-tbgzs
 
 
 ---
