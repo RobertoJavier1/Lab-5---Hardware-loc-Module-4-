@@ -75,6 +75,11 @@ class MapViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    //mensaje de resultado cuando se elimina un spot
+    private val _deleteMessage = MutableStateFlow<String?>(null)
+    val deleteMessage: StateFlow<String?> = _deleteMessage.asStateFlow()
+
+
     /**
      * Lista de todos los spots
      *
@@ -166,17 +171,17 @@ class MapViewModel(
             try {
                 _isLoading.value = true
                 //ejecuta el proceso de la captura en el repositorio
-                    val result = repository.createSpot(imageCapture)
+                val result = repository.createSpot(imageCapture)
                 //el repo ya devuelve Succes/Nolocation/InvalidCoordinates/PhotoCaptureFailed
-                    _createSpotResult.value = result
-                } catch (e: Exception) {
-                    //por si algo totalmente inesperado falla
-                    _errorMessage.value = "Error al capturar: ${e.message}"
-                    _createSpotResult.value = null
-                } finally {
-                    _isLoading.value = false
-                }
+                _createSpotResult.value = result
+            } catch (e: Exception) {
+                //por si algo totalmente inesperado falla
+                _errorMessage.value = "Error al capturar: ${e.message}"
+                _createSpotResult.value = null
+            } finally {
+                _isLoading.value = false
             }
+        }
 
 //                when (val result = repository.createSpot(imageCapture)) {
 //                    is CreateSpotResult.Success -> {
@@ -199,7 +204,7 @@ class MapViewModel(
 //            } finally {
 //                _isLoading.value = false
 //            }
-        }
+    }
 
 
     /**
@@ -215,6 +220,28 @@ class MapViewModel(
      */
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    //funcion para borrar un spot
+    fun deleteSpot(spot: SpotEntity) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                repository.deleteSpot(spot)
+                _deleteMessage.value = "Spot eliminado"
+            } catch (e: Exception) {
+                _errorMessage.value = "Error al eliminar el spot: ${e.message}"
+
+            } finally {
+                _isLoading.value = false
+            }
+
+        }
+    }
+
+    //funcion para limpiar el mensaje
+    fun clearDeleteMessage() {
+        _deleteMessage.value = null
     }
 }
 

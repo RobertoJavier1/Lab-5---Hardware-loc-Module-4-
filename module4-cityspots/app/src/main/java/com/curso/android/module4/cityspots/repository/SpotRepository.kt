@@ -230,7 +230,7 @@ class SpotRepository(
     //funcon para de la base de datos y borrar el archivo de la photo
     suspend fun deleteSpot(spot: SpotEntity) {
         //borrar archivo de foto si existe
-        //runCatching funciona como un try catch evita que la app crashee si el archivo no existe o ocurre un error
+        //runCatching funciona como un try catch evita que la app crashee si el archivo no existe o ocurre un error, y si ocurre error no lo manejamos
         runCatching {
             //convertir el string a objeto Uri
             val uri = Uri.parse(spot.imageUri)
