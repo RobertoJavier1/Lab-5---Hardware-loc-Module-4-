@@ -102,6 +102,7 @@ class MapViewModel(
     //expone un createSpotResult tipado en vez de un boolean
     //para manejar errores especificos
     private val _createSpotResult = MutableStateFlow<CreateSpotResult?>(null)
+
     val createSpotResult: StateFlow<CreateSpotResult?> = _createSpotResult.asStateFlow()
 
     // =========================================================================

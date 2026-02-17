@@ -85,6 +85,9 @@ interface SpotDao {
     @Query("SELECT COUNT(*) FROM spots")
     suspend fun getSpotCount(): Int
 
+    //metodo para borrar marker
+    @Query("DELETE FROM spots WHERE id = :id")
+    suspend fun deleteSpot(id: Long)
 
 
 

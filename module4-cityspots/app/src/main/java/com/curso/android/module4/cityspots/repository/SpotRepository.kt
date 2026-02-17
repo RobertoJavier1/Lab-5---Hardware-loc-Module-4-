@@ -226,7 +226,23 @@ class SpotRepository(
         // Retornar el spot con el ID generado
         return CreateSpotResult.Success(spot.copy(id = id))
     }
+
+    //funcon para de la base de datos y borrar el archivo de la photo
+    suspend fun deleteSpot(spot: SpotEntity) {
+        //borrar archivo de foto si existe
+        //runCatching funciona como un try catch evita que la app crashee si el archivo no existe o ocurre un error
+        runCatching {
+            //convertir el string a objeto Uri
+            val uri = Uri.parse(spot.imageUri)
+            cameraUtils.deleteImage(uri)
+        }
+
+        //borrar registro de Room
+        spotDao.deleteSpot(spot.id)
+    }
 }
+
+
 
 /**
  * Resultado de la creación de un Spot
