@@ -1,5 +1,6 @@
 package com.curso.android.module4.cityspots.ui.screens
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -20,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -116,6 +119,9 @@ fun MapScreen(
     val userLocation by viewModel.userLocation.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    //para el mensaje al elminar
+    val deleteMessage by viewModel.deleteMessage.collectAsState()
+
 
     // Estado para Snackbar de errores
     val snackbarHostState = remember { SnackbarHostState() }
@@ -166,6 +172,14 @@ fun MapScreen(
         errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.clearError()
+        }
+    }
+
+    //para mostrar snackbar cuando se borra un spot
+    LaunchedEffect(deleteMessage) {
+        deleteMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearDeleteMessage()
         }
     }
 
@@ -230,6 +244,10 @@ fun MapScreen(
          */
         var selectedSpot by remember { mutableStateOf<SpotEntity?>(null) }
 
+        //para controlar si el alertDialog se muestra
+        var spotToDelete by remember { mutableStateOf<SpotEntity?>(null) }
+
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -251,6 +269,30 @@ fun MapScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp)
+                        //para borrar el spot manteniendo presionado
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = { spotToDelete = spot }
+                        )
+                )
+            }
+
+            //AlertDialog solo cuando hay un spot pendiente de borrar
+            spotToDelete?.let { spot ->
+                AlertDialog(
+                    onDismissRequest = { spotToDelete = null },
+                    title = { Text("confirmation") },
+                    text = { Text("Are you sure?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.deleteSpot(spot)
+                            spotToDelete = null
+                            if (selectedSpot?.id == spot.id) selectedSpot = null
+                        }) { Text("Delete") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { spotToDelete = null }) { Text("Cancel") }
+                    }
                 )
             }
 
